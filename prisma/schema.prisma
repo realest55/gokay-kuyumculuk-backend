@@ -1,0 +1,168 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Enum for order status to ensure data consistency
+enum OrderStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+// Yeni Category modeli
+model Category {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String    @unique
+  products  Product[] // Bir kategorinin birden fazla ürünü olabilir
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("categories")
+}
+
+model Product {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  price       Float
+  // category String yerine categoryId ve ilişki ekledik
+  categoryId  String     @db.ObjectId // Kategoriye olan ilişki için foreign key
+  category    Category   @relation(fields: [categoryId], references: [id]) // Kategori ilişkisi
+  stock       Int
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  orderItems  OrderItem[]
+  cartItems   CartItem[] // Ürün ile sepet öğeleri arasındaki ilişki
+
+  @@map("products")
+}
+
+model Customer {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+
+  @@map("customers")
+}
+
+model Order {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  customerId  String      @db.ObjectId
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  orderDate   DateTime    @default(now())
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+  items       OrderItem[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  orderId   String  @db.ObjectId
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String  @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quantity  Int
+  price     Float // Price at the time of order
+
+  @@map("order_items")
+}
+
+// Yeni Cart ve CartItem modelleri
+model Cart {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String     @unique @db.ObjectId // Hangi kullanıcıya ait sepet olduğu
+  user      User       @relation(fields: [userId], references: [id]) // User modeliyle ilişki
+  items     CartItem[] // Sepetteki ürünler
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  cartId    String  @db.ObjectId
+  cart      Cart    @relation(fields: [cartId], references: [id])
+  productId String  @db.ObjectId
+  product   Product @relation(fields: [productId], references: [id]) // Ürünle ilişki
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId]) // Bir sepette aynı üründen sadece bir tane olabilir
+  @@map("cart_items")
+}
+
+// Models for Next-Auth (mevcut User modeli)
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String? // Password will be hashed
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  cart          Cart?     // User ile Cart arasında birebir ilişki
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
