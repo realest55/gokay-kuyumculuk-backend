@@ -1,65 +1,77 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { User } from '../users/schemas/user.schema';
 import { AuthDto } from './dto/auth.dto';
+import * as argon from 'argon2';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from 'src/users/users.service';
-// HATA ÇÖZÜMÜ 1. ADIM:
-// User'ın tüm Mongoose özelliklerini içeren UserDocument tipini import ediyoruz.
-import { UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
+    // PrismaService yerine Mongoose User Model'i inject edildi.
+    @InjectModel(User.name) private userModel: Model<User>,
+    private jwt: JwtService,
+    private config: ConfigService,
   ) {}
 
+  /**
+   * YENİ KULLANICI OLUŞTURMA (SIGNUP) - Mongoose Versiyonu
+   */
   async signup(dto: AuthDto) {
-    const hash = await bcrypt.hash(dto.password, 10);
-
+    const hash = await argon.hash(dto.password);
+    
     try {
-      // HATA ÇÖZÜMÜ 2. ADIM:
-      // 'user' değişkeninin tipini açıkça UserDocument olarak belirtiyoruz.
-      const user: UserDocument = await this.usersService.create(dto, hash);
-      return this.signToken(user._id.toString(), user.email, user.role);
+      const createdUser = new this.userModel({
+        email: dto.email,
+        name: dto.name,
+        hash: hash,
+      });
+      const user = await createdUser.save();
+      
+      return this.signToken(user.id, user.email);
     } catch (error) {
+      // MongoDB'nin duplicate key hatası (kod 11000)
       if (error.code === 11000) {
-        throw new ForbiddenException('Credentials taken');
+        throw new ForbiddenException('Bu email adresi zaten kullanılıyor.');
       }
       throw error;
     }
   }
 
+  /**
+   * KULLANICI GİRİŞİ (SIGNIN) - Mongoose Versiyonu
+   */
   async signin(dto: AuthDto) {
-    // HATA ÇÖZÜMÜ 3. ADIM:
-    // 'user' değişkeninin tipini açıkça UserDocument olarak belirtiyoruz.
-    const user: UserDocument | null = await this.usersService.findOneByEmail(
-      dto.email,
-    );
-    if (!user) throw new ForbiddenException('Credentials incorrect');
+    const user = await this.userModel.findOne({ email: dto.email }).exec();
 
-    const pwMatches = await bcrypt.compare(dto.password, user.hash);
-    if (!pwMatches) throw new ForbiddenException('Credentials incorrect');
+    if (!user) {
+      throw new ForbiddenException('Kimlik bilgileri yanlış');
+    }
 
-    return this.signToken(user._id.toString(), user.email, user.role);
+    const pwMatches = await argon.verify(user.hash, dto.password);
+
+    if (!pwMatches) {
+      throw new ForbiddenException('Kimlik bilgileri yanlış');
+    }
+
+    return this.signToken(user.id, user.email);
   }
 
+  // Token oluşturma yardımcı fonksiyonu (Bu kısım aynı kalıyor)
   async signToken(
     userId: string,
     email: string,
-    role: string,
   ): Promise<{ access_token: string }> {
     const payload = {
       sub: userId,
       email,
-      role,
     };
-    const secret = this.configService.get('JWT_SECRET');
+    const secret = this.config.get('JWT_SECRET');
 
-    const token = await this.jwtService.signAsync(payload, {
-      expiresIn: '60m',
+    const token = await this.jwt.signAsync(payload, {
+      expiresIn: '15m',
       secret: secret,
     });
 

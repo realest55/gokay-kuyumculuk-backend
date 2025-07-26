@@ -1,1 +1,1 @@
-export const API_BASE_URL = 'http://localhost:3000/api'; // Backend sunucumun adresi bu olacak.
+export const API_BASE_URL = 'http://localhost:3001'; 

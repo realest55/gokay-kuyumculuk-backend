@@ -8,12 +8,18 @@ export class UsersController {
 
   // Bu endpoint, sadece geçerli bir JWT'ye sahip kullanıcıların
   // kendi profil bilgilerini görmesini sağlar.
-  // @UseGuards(AuthGuard('jwt')) ifadesi bu endpoint'i koruma altına alır.
   @UseGuards(AuthGuard('jwt'))
-  @Get('profile')
+  @Get('profile') // Frontend'in beklediği endpoint adı
   getProfile(@Request() req) {
     // req.user, bizim jwt.strategy.ts dosyasındaki validate metodundan geliyor.
     // O metodda kullanıcıyı bulup şifresini çıkardıktan sonra buraya gönderiyoruz.
-    return req.user;
+    // Frontend'e sadece gerekli bilgileri döndür.
+    const { _id, email, role, name } = req.user;
+    return { id: _id, email, role, name }; // name alanı da eklendi
   }
+
+  // Admin panelinin tüm kullanıcıları listelemesi için bu endpoint'i eklemiyoruz
+  // çünkü şimdilik admin paneline dokunmuyoruz.
+  // Eğer admin paneli için tüm kullanıcıları listeleme ihtiyacı olursa,
+  // buraya @UseGuards(AuthGuard('jwt'), RolesGuard) ve @Roles('ADMIN') ile bir endpoint eklenebilir.
 }

@@ -25,6 +25,19 @@ export class Product {
 
   @Prop()
   image2?: string;
+
+  // Yeni eklenen alanlar
+  @Prop([String]) // Malzeme türlerini tutacak bir string dizisi
+  material?: string[];
+
+  @Prop([String]) // Taş türlerini tutacak bir string dizisi
+  stone?: string[];
+
+  @Prop([String]) // Metal renklerini tutacak bir string dizisi
+  metalColor?: string[];
+
+  @Prop({ default: false }) // Kargo bedava olup olmadığını belirten boolean
+  freeShipping?: boolean;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
