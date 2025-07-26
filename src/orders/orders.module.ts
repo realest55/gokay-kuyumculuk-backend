@@ -3,14 +3,18 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { OrdersService } from './orders.service';
 import { OrdersController } from './orders.controller';
 import { Order, OrderSchema } from './schemas/order.schema';
+import { AuthModule } from '../auth/auth.module';
+import { ProductsModule } from '../products/products.module'; // ProductsModule import edildi
+import { CartModule } from '../cart/cart.module'; // CartModule import edildi
 
 @Module({
   imports: [
-    // PrismaModule yerine MongooseModule.forFeature kullanıyoruz.
-    // Bu, Order modelini bu modül içinde kullanılabilir hale getirir.
+    // OrdersModule'ün kendi kullanacağı modeli tanımlıyoruz
     MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]),
-    // Not: Customer ve Product modelleri de Mongoose'a taşındığında
-    // ve bu serviste kullanılacaksa, onların modüllerini de buraya import etmelisiniz.
+    // Bağımlı olduğumuz diğer modülleri import ediyoruz
+    ProductsModule,
+    CartModule,
+    AuthModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

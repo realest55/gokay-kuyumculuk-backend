@@ -1,46 +1,36 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { User } from '../../users/schemas/user.schema';
+import { Product } from '../../products/schemas/product.schema';
 
-// Siparişteki her bir ürünü temsil eden alt şema (subdocument)
-@Schema({ _id: false }) // Alt dökümanlar için ayrı bir _id oluşturulmasını engeller
+// Sipariş içindeki tek bir ürünü temsil eden alt şema (subdocument)
+@Schema({ _id: false }) // Alt dokümanlar için ayrı bir _id oluşturma
 export class OrderItem {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Product', required: true })
-  productId: Types.ObjectId;
+  product: Product; // 'productId' yerine doğrudan 'product' referansı
 
   @Prop({ required: true })
   quantity: number;
 
   @Prop({ required: true })
-  price: number; // Sipariş anındaki fiyat
+  price: number;
 }
 export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
-
-// Ana sipariş şeması
-export type OrderDocument = Order & Document;
-
+// Ana Sipariş Şeması
 @Schema({ timestamps: true }) // createdAt ve updatedAt alanlarını otomatik ekler
-export class Order {
-  // Prisma şemasındaki Customer modeline referans veriyoruz.
-  // Mongoose'da model isimleri büyük harfle başlar.
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer', required: true })
-  customerId: Types.ObjectId;
+export class Order extends Document {
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  user: User; // 'userId' yerine doğrudan 'user' referansı
 
-  @Prop({ default: Date.now })
-  orderDate: Date;
+  @Prop({ type: [OrderItemSchema], required: true })
+  items: OrderItem[];
 
   @Prop({ required: true })
-  totalAmount: number;
+  total: number;
 
-  @Prop({
-    required: true,
-    enum: ['PENDING', 'SHIPPED', 'DELIVERED', 'CANCELLED'],
-    default: 'PENDING',
-  })
-  status: string;
-
-  @Prop({ type: [OrderItemSchema], default: [] })
-  items: OrderItem[];
+  @Prop({ type: String, default: 'Pending' })
+  status: string; // Örn: 'Pending', 'Completed', 'Cancelled'
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

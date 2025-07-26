@@ -10,5 +10,7 @@ import { Product, ProductSchema } from './schemas/product.schema';
   ],
   controllers: [ProductsController],
   providers: [ProductsService],
+  // ProductModel'i enjekte etmek isteyen diğer modüller için MongooseModule'ü export ediyoruz
+  exports: [MongooseModule],
 })
 export class ProductsModule {}

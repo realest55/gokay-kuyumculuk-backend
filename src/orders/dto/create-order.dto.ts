@@ -2,32 +2,45 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsInt,
-  IsMongoId,
   IsNotEmpty,
   IsNumber,
+  IsString,
+  IsMongoId, // Mongoose için MongoId doğrulaması eklendi
   Min,
   ValidateNested,
 } from 'class-validator';
 
-// Siparişteki her bir ürünü temsil eden alt DTO
+/**
+ * Siparişteki her bir kalemin yapısını tanımlar.
+ */
 class OrderItemDto {
-  @IsMongoId() // Ürün ID'sinin geçerli bir MongoDB ObjectId olmasını sağlıyoruz.
+  // Mongoose ObjectId'leri string olduğu için tip ve doğrulama güncellendi.
+  @IsString()
+  @IsMongoId({ message: 'Product ID must be a valid Mongo ObjectId' })
   @IsNotEmpty()
   productId: string;
 
   @IsInt()
   @Min(1)
+  @IsNotEmpty()
   quantity: number;
+
+  @IsNumber()
+  @IsNotEmpty()
+  price: number;
 }
 
-// Ana sipariş oluşturma DTO'su
+/**
+ * Yeni bir sipariş oluşturmak için gereken verileri tanımlar.
+ */
 export class CreateOrderDto {
-  @IsMongoId() // Müşteri ID'sinin geçerli bir MongoDB ObjectId olmasını sağlıyoruz.
-  @IsNotEmpty() // Boş olmamasını sağlıyoruz.
-  customerId: string; // Müşteri ID'si eklendi
-
   @IsArray()
-  @ValidateNested({ each: true }) // Dizideki her bir objenin de doğrulanmasını sağlar.
-  @Type(() => OrderItemDto) // Gelen objeleri OrderItemDto class'ına dönüştürür.
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  @IsNotEmpty()
   items: OrderItemDto[];
+
+  @IsNumber()
+  @IsNotEmpty()
+  total: number;
 }
