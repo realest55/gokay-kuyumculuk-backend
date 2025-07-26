@@ -1,126 +1,65 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { AuthDto } from './dto/auth.dto'; // DTO yolu güncellendi
-import * as argon from 'argon2';
-import { Prisma } from '@prisma/client'; // Prisma client tipi eklendi
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { AuthDto } from './dto/auth.dto';
 import { ConfigService } from '@nestjs/config';
+import { UsersService } from 'src/users/users.service';
+// HATA ÇÖZÜMÜ 1. ADIM:
+// User'ın tüm Mongoose özelliklerini içeren UserDocument tipini import ediyoruz.
+import { UserDocument } from 'src/users/schemas/user.schema';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwt: JwtService,
-    private config: ConfigService,
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
-  /**
-   * Kullanıcı kaydı işlemini yönetir.
-   * @param dto - Kayıt için gerekli kullanıcı bilgileri (email, password, name).
-   * @returns JWT token ve kullanıcı bilgileri.
-   */
   async signup(dto: AuthDto) {
-    // Şifreyi hash'le
-    const hash = await argon.hash(dto.password);
+    const hash = await bcrypt.hash(dto.password, 10);
 
     try {
-      // Yeni kullanıcı oluştur
-      const user = await this.prisma.user.create({
-        data: {
-          email: dto.email,
-          password: hash, // 'hash' yerine 'password' kullanıldı
-          name: dto.name, // 'name' alanı eklendi
-        },
-      });
-
-      // Kullanıcının şifresini döndürmemek için object destructuring kullanıldı
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...result } = user;
-
-      // JWT token oluştur ve döndür
-      // result.id ve result.email'in null olmadığını garanti altına alıyoruz
-      if (result.id === null || result.email === null) {
-        throw new Error('User ID or email cannot be null after user creation.');
-      }
-      return this.signToken(result.id, result.email);
-
+      // HATA ÇÖZÜMÜ 2. ADIM:
+      // 'user' değişkeninin tipini açıkça UserDocument olarak belirtiyoruz.
+      const user: UserDocument = await this.usersService.create(dto, hash);
+      return this.signToken(user._id.toString(), user.email, user.role);
     } catch (error) {
-      // Prisma hata kodlarını kontrol et (daha sağlam kontrol)
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        // E-posta zaten kayıtlıysa hata fırlat
+      if (error.code === 11000) {
         throw new ForbiddenException('Credentials taken');
       }
-      throw error; // Diğer hataları yeniden fırlat
+      throw error;
     }
   }
 
-  /**
-   * Kullanıcı giriş işlemini yönetir.
-   * @param dto - Giriş için gerekli kullanıcı bilgileri (email, password).
-   * @returns JWT token ve kullanıcı bilgileri.
-   */
   async signin(dto: AuthDto) {
-    // E-posta ile kullanıcıyı bul
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: dto.email,
-      },
-    });
+    // HATA ÇÖZÜMÜ 3. ADIM:
+    // 'user' değişkeninin tipini açıkça UserDocument olarak belirtiyoruz.
+    const user: UserDocument | null = await this.usersService.findOneByEmail(
+      dto.email,
+    );
+    if (!user) throw new ForbiddenException('Credentials incorrect');
 
-    // Kullanıcı yoksa hata fırlat
-    if (!user) {
-      throw new ForbiddenException('Credentials incorrect');
-    }
+    const pwMatches = await bcrypt.compare(dto.password, user.hash);
+    if (!pwMatches) throw new ForbiddenException('Credentials incorrect');
 
-    // Kullanıcının şifresinin null olup olmadığını kontrol et
-    // Normalde bu durum olmamalıdır, çünkü kullanıcı oluşturulurken şifre hashlenir.
-    if (user.password === null) { // 'user.hash' yerine 'user.password' kullanıldı
-      throw new ForbiddenException('User password not set');
-    }
-
-    // Sağlanan şifre ile kayıtlı hashlenmiş şifreyi karşılaştır
-    const pwMatches = await argon.verify(user.password, dto.password);
-
-    // Şifreler eşleşmiyorsa hata fırlat
-    if (!pwMatches) {
-      throw new ForbiddenException('Credentials incorrect');
-    }
-
-    // Kullanıcının şifresini döndürmemek için object destructuring kullanıldı
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...result } = user;
-
-    // JWT token oluştur ve döndür
-    // result.id ve result.email'in null olmadığını garanti altına alıyoruz
-    if (result.id === null || result.email === null) {
-      throw new Error('User ID or email cannot be null for token generation.');
-    }
-    return this.signToken(result.id, result.email);
+    return this.signToken(user._id.toString(), user.email, user.role);
   }
 
-  /**
-   * JWT token oluşturur.
-   * @param userId - Kullanıcı ID'si.
-   * @param email - Kullanıcı e-postası.
-   * @returns Oluşturulan JWT token.
-   */
-  async signToken(userId: string, email: string): Promise<{ access_token: string }> {
-    // userId ve email'in null olmadığını garanti altına al
-    if (userId === null || email === null) {
-      throw new Error('User ID or email cannot be null for token generation.');
-    }
-
+  async signToken(
+    userId: string,
+    email: string,
+    role: string,
+  ): Promise<{ access_token: string }> {
     const payload = {
       sub: userId,
       email,
+      role,
     };
-    const secret = this.config.get('JWT_SECRET');
+    const secret = this.configService.get('JWT_SECRET');
 
-    const token = await this.jwt.signAsync(payload, {
-      expiresIn: '15m', // Token geçerlilik süresi
+    const token = await this.jwtService.signAsync(payload, {
+      expiresIn: '60m',
       secret: secret,
     });
 

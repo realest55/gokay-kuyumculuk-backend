@@ -1,12 +1,14 @@
-// src/categories/categories.module.ts
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import { CategoriesService } from './categories.service';
 import { CategoriesController } from './categories.controller';
-import { PrismaService } from '../prisma/prisma.service'; // Eklendi
+import { Category, CategorySchema } from './schemas/category.schema';
 
 @Module({
+  imports: [
+    MongooseModule.forFeature([{ name: Category.name, schema: CategorySchema }]),
+  ],
   controllers: [CategoriesController],
-  providers: [CategoriesService, PrismaService], // PrismaService eklendi
+  providers: [CategoriesService],
 })
 export class CategoriesModule {}
-

@@ -1,16 +1,17 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import { UsersService } from './users.service';
-import { UsersController } from './users.controller'; // <-- YOL DÜZELTİLDİ
-import { PrismaModule } from '../prisma/prisma.module';
-import { AuthModule } from '../auth/auth.module';
+import { UsersController } from './users.controller';
+import { User, UserSchema } from './schemas/user.schema';
 
 @Module({
   imports: [
-    PrismaModule,
-    forwardRef(() => AuthModule), // Dairesel bağımlılık çözümü
+    // User modelini ve şemasını Mongoose'a tanıtıyoruz.
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
   controllers: [UsersController],
   providers: [UsersService],
-  exports: [UsersService], // UsersService'i dışarıya açıyoruz
+  // UsersService'i diğer modüllerin (özellikle AuthModule) kullanabilmesi için export ediyoruz.
+  exports: [UsersService],
 })
 export class UsersModule {}

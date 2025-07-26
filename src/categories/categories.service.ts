@@ -1,21 +1,21 @@
-// src/categories/categories.service.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { Category } from '@prisma/client';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { Category, CategoryDocument } from './schemas/category.schema';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Category.name) private categoryModel: Model<CategoryDocument>,
+  ) {}
 
-  // Tüm kategorileri getiren method
   async findAll(): Promise<Category[]> {
-    return this.prisma.category.findMany();
+    return this.categoryModel.find().exec();
   }
 
-  // Yeni bir kategori oluşturan method
-  async create(data: { name: string }): Promise<Category> {
-    return this.prisma.category.create({
-      data,
-    });
+  async create(createCategoryDto: CreateCategoryDto): Promise<Category> {
+    const createdCategory = new this.categoryModel(createCategoryDto);
+    return createdCategory.save();
   }
 }

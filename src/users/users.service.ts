@@ -1,24 +1,28 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { User } from '@prisma/client';
+  // src/users/users.service.ts (Düzeltilmiş Hali)
 
-@Injectable()
-export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  import { Injectable } from '@nestjs/common';
+  import { InjectModel } from '@nestjs/mongoose';
+  import { Model } from 'mongoose';
+  // HydratedDocument yerine UserDocument'ı import ediyoruz.
+  import { User, UserDocument } from './schemas/user.schema'; 
+  import { AuthDto } from 'src/auth/dto/auth.dto';
 
-  // AuthService'in kullanıcıyı e-posta adresine göre bulması için
-  async findByEmail(email: string): Promise<User | null> { // <-- HATA DÜZELTİLDİ: undefined yerine null
-    return this.prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
+  @Injectable()
+  export class UsersService {
+    // Modelimizi de UserDocument ile tiplemek daha tutarlı olacaktır.
+    constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+
+    // Dönüş tipini UserDocument olarak değiştiriyoruz.
+    async create(dto: AuthDto, hash: string): Promise<UserDocument> {
+      const newUser = new this.userModel({
+        email: dto.email,
+        hash: hash,
+      });
+      return newUser.save();
+    }
+
+    // Dönüş tipini UserDocument | null olarak değiştiriyoruz.
+    async findOneByEmail(email: string): Promise<UserDocument | null> {
+      return this.userModel.findOne({ email: email }).exec();
+    }
   }
-
-  // Yeni kullanıcı oluşturmak için
-  async create(data: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-    return this.prisma.user.create({
-      data,
-    });
-  }
-}

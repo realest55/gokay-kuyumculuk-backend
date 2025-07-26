@@ -1,93 +1,53 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { Product, ProductDocument } from './schemas/product.schema';
 
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+  ) {}
 
-  // YENİ: Ürün oluşturma metodu
-  async create(createProductDto: CreateProductDto) {
+  async create(createProductDto: CreateProductDto): Promise<Product> {
     this.logger.log(`Yeni ürün oluşturuluyor: ${createProductDto.name}`);
-    try {
-      const newProduct = await this.prisma.product.create({
-        data: createProductDto,
-      });
-      return newProduct;
-    } catch (error) {
-      this.logger.error(`Ürün oluşturulurken hata: ${error.message}`, error.stack);
-      // Hata detayını daha iyi anlamak için fırlatıyoruz.
-      throw error;
-    }
+    const newProduct = new this.productModel(createProductDto);
+    return newProduct.save();
   }
 
-  // Mevcut ürün listeleme metodu
-  async findAll() {
-    try {
-      this.logger.log('Ürünler sorgulanıyor...');
-      const products = await this.prisma.product.findMany({
-        include: {
-          category: true,
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      });
-      this.logger.log(`${products.length} adet ürün bulundu.`);
-      return products;
-    } catch (error) {
-      this.logger.error('Ürünleri çekerken bir hata oluştu:', error.stack);
-      return [];
-    }
+  async findAll(): Promise<Product[]> {
+    this.logger.log('Ürünler sorgulanıyor...');
+    return this.productModel.find().populate('categoryId').exec();
   }
 
-  // YENİ: Tek bir ürünü ID ile bulma metodu
-  async findOne(id: string) {
+  async findOne(id: string): Promise<Product> {
     this.logger.log(`${id} ID'li ürün aranıyor...`);
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      include: { category: true },
-    });
+    const product = await this.productModel.findById(id).exec();
     if (!product) {
       throw new NotFoundException(`${id} ID'li ürün bulunamadı.`);
     }
     return product;
   }
 
-  // YENİ: Ürün güncelleme metodu
-  async update(id: string, updateProductDto: UpdateProductDto) {
+  async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
     this.logger.log(`${id} ID'li ürün güncelleniyor...`);
-    try {
-      return await this.prisma.product.update({
-        where: { id },
-        data: updateProductDto,
-      });
-    } catch (error) {
-      // Prisma'nın P2025 hatası (kayıt bulunamadı) için özel kontrol
-      if (error.code === 'P2025') {
-        throw new NotFoundException(`Güncellenecek ürün bulunamadı: ${id}`);
-      }
-      this.logger.error(`Ürün güncellenirken hata: ${error.message}`, error.stack);
-      throw error;
+    const updatedProduct = await this.productModel.findByIdAndUpdate(id, updateProductDto, { new: true }).exec();
+    if (!updatedProduct) {
+      throw new NotFoundException(`Güncellenecek ürün bulunamadı: ${id}`);
     }
+    return updatedProduct;
   }
 
-  // YENİ: Ürün silme metodu
-  async remove(id: string) {
+  async remove(id: string): Promise<Product> {
     this.logger.log(`${id} ID'li ürün siliniyor...`);
-    try {
-      return await this.prisma.product.delete({
-        where: { id },
-      });
-    } catch (error) {
-      if (error.code === 'P2025') {
-        throw new NotFoundException(`Silinecek ürün bulunamadı: ${id}`);
-      }
-      this.logger.error(`Ürün silinirken hata: ${error.message}`, error.stack);
-      throw error;
+    const deletedProduct = await this.productModel.findByIdAndDelete(id).exec();
+    if (!deletedProduct) {
+      throw new NotFoundException(`Silinecek ürün bulunamadı: ${id}`);
     }
+    return deletedProduct;
   }
 }

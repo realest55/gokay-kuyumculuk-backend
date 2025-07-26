@@ -1,47 +1,39 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import { AddToCartDto } from './dto/add-to-cart.dto';
-  
+import { Cart, CartDocument } from './schemas/cart.schema';
+
 @Injectable()
 export class CartService {
-  constructor(private prisma: PrismaService) {}
+  constructor(@InjectModel(Cart.name) private cartModel: Model<CartDocument>) {}
 
-  async getCart(userId: string) {
-    let cart = await this.prisma.cart.findUnique({
-      where: { userId },
-      include: { items: { include: { product: true } } },
-    });
+  async getCart(userId: string): Promise<CartDocument> {
+    const userObjectId = new Types.ObjectId(userId);
+    let cart = await this.cartModel.findOne({ userId: userObjectId }).populate('items.productId').exec();
 
     if (!cart) {
-      cart = await this.prisma.cart.create({
-        data: { userId },
-        include: { items: { include: { product: true } } },
-      });
+      cart = new this.cartModel({ userId: userObjectId, items: [] });
+      await cart.save();
     }
     return cart;
   }
 
-  async addItem(userId: string, addToCartDto: AddToCartDto) {
+  async addItem(userId: string, addToCartDto: AddToCartDto): Promise<CartDocument> {
     const { productId, quantity } = addToCartDto;
     const cart = await this.getCart(userId);
 
-    const existingItem = await this.prisma.cartItem.findFirst({
-      where: { cartId: cart.id, productId },
-    });
+    const productObjectId = new Types.ObjectId(productId);
+    const itemIndex = cart.items.findIndex((item) => item.productId.equals(productObjectId));
 
-    if (existingItem) {
-      return this.prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: { quantity: existingItem.quantity + quantity },
-      });
+    if (itemIndex > -1) {
+      // Ürün sepette varsa, miktarını artır
+      cart.items[itemIndex].quantity += quantity;
     } else {
-      return this.prisma.cartItem.create({
-        data: {
-          cartId: cart.id,
-          productId,
-          quantity,
-        },
-      });
+      // Ürün sepette yoksa, yeni bir ürün olarak ekle
+      cart.items.push({ productId: productObjectId, quantity });
     }
+
+    return cart.save();
   }
 }
