@@ -1,4 +1,4 @@
-  // src/users/users.service.ts (Düzeltilmiş Hali)
+  // src/users/users.service.ts
 
   import { Injectable } from '@nestjs/common';
   import { InjectModel } from '@nestjs/mongoose';
@@ -14,12 +14,17 @@
       const newUser = new this.userModel({
         email: dto.email,
         hash: hash,
-        name: dto.name, // AuthDto'dan gelen name alanını ekle
+        name: dto.name,
       });
       return newUser.save();
     }
 
     async findOneByEmail(email: string): Promise<UserDocument | null> {
       return this.userModel.findOne({ email: email }).exec();
+    }
+
+    // Yeni eklenen metot: Tüm kullanıcıları getirir
+    async findAllUsers(): Promise<UserDocument[]> {
+      return this.userModel.find().exec();
     }
   }

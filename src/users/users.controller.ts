@@ -1,25 +1,26 @@
 import { Controller, Get, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { UsersService } from './users.service';
+import { RolesGuard } from '../auth/roles.guard'; // RolesGuard'ı import et
+import { Roles } from '../auth/roles.decorator'; // Roles decorator'ı import et
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // Bu endpoint, sadece geçerli bir JWT'ye sahip kullanıcıların
-  // kendi profil bilgilerini görmesini sağlar.
+  // Kullanıcının kendi profil bilgilerini getirir (Admin panelinde /users/me olarak çağrılıyor)
   @UseGuards(AuthGuard('jwt'))
-  @Get('profile') // Frontend'in beklediği endpoint adı
+  @Get('me') // Endpoint /users/me olarak değiştirildi
   getProfile(@Request() req) {
-    // req.user, bizim jwt.strategy.ts dosyasındaki validate metodundan geliyor.
-    // O metodda kullanıcıyı bulup şifresini çıkardıktan sonra buraya gönderiyoruz.
-    // Frontend'e sadece gerekli bilgileri döndür.
     const { _id, email, role, name } = req.user;
-    return { id: _id, email, role, name }; // name alanı da eklendi
+    return { id: _id, email, role, name };
   }
 
-  // Admin panelinin tüm kullanıcıları listelemesi için bu endpoint'i eklemiyoruz
-  // çünkü şimdilik admin paneline dokunmuyoruz.
-  // Eğer admin paneli için tüm kullanıcıları listeleme ihtiyacı olursa,
-  // buraya @UseGuards(AuthGuard('jwt'), RolesGuard) ve @Roles('ADMIN') ile bir endpoint eklenebilir.
+  // Tüm kullanıcıları listeler (Sadece ADMIN rolüne sahip kullanıcılar erişebilir)
+  @UseGuards(AuthGuard('jwt'), RolesGuard) // JWT doğrulamasından sonra rol kontrolü yapılır
+  @Roles('ADMIN') // Sadece ADMIN rolüne sahip kullanıcılar erişebilir
+  @Get() // Endpoint /users olarak tanımlandı
+  findAllUsers() {
+    return this.usersService.findAllUsers(); // Yeni metodu çağırıyoruz
+  }
 }
