@@ -1,8 +1,12 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { AuthDto } from './dto/auth.dto';
+import { SignUpDto } from './dto/signup-auth.dto';
+import { SignInDto } from './dto/signin-auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -11,11 +15,10 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async signIn(authDto: AuthDto): Promise<{ access_token: string }> {
-    const user = await this.usersService.findOne(authDto.email);
-    
-    // DÜZELTME: user.password artık `findOne` metodunda `select('+password')` kullanıldığı için erişilebilir.
-    if (!user || !(await bcrypt.compare(authDto.password, user.password))) {
+  async signIn(signInDto: SignInDto): Promise<{ access_token: string }> {
+    const user = await this.usersService.findOne(signInDto.email);
+
+    if (!user || !(await bcrypt.compare(signInDto.password, user.hash))) {
       throw new UnauthorizedException('Geçersiz kimlik bilgileri');
     }
     const payload = { sub: user._id, username: user.email, role: user.role };
@@ -24,19 +27,16 @@ export class AuthService {
     };
   }
 
-  async signUp(authDto: AuthDto) {
-    if (!authDto.name) {
-        throw new BadRequestException('İsim alanı zorunludur.');
-    }
-    const hashedPassword = await bcrypt.hash(authDto.password, 10);
+  async signUp(signUpDto: SignUpDto) {
+    const hashedPassword = await bcrypt.hash(signUpDto.password, 10);
+
+    const { password, ...userData } = signUpDto;
     const newUser = await this.usersService.create({
-      ...authDto,
-      password: hashedPassword,
+      ...userData,
+      hash: hashedPassword,
     });
-    
-    // DÜZELTME: Dönen yanıttan parolayı güvenli bir şekilde kaldırıyoruz.
-    const userObject = newUser.toObject();
-    delete userObject.password;
-    return userObject;
+
+    const { hash, ...result } = newUser.toObject();
+    return result;
   }
 }

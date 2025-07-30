@@ -1,18 +1,19 @@
-// src/users/schemas/user.schema.ts (DOĞRU VE GÜNCEL HALİ)
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-// 'Document' yerine 'HydratedDocument' import ediyoruz.
 import { HydratedDocument } from 'mongoose';
 
-// UserDocument tipini bu şekilde tanımlıyoruz. Bu, sorunu çözecektir.
 export type UserDocument = HydratedDocument<User>;
 
 @Schema({ timestamps: true })
 export class User {
+  // DÜZELTME: 'name' alanı şemaya eklendi.
+  @Prop({ required: true })
+  name: string;
+
   @Prop({ required: true, unique: true, trim: true })
   email: string;
 
-  @Prop({ required: true })
+  // DÜZELTME: Şifre alanı seçilmedikçe sorgularda gelmemesi için select: false eklendi.
+  @Prop({ required: true, select: false })
   hash: string;
 
   @Prop({ type: String, enum: ['ADMIN', 'USER'], default: 'USER' })

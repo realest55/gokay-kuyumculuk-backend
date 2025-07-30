@@ -8,13 +8,10 @@ import { AuthModule } from '../auth/auth.module';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-    // AuthModule'ü, UsersController'daki Guard'lar için import ediyoruz.
-    // Dairesel bağımlılığı çözmek için forwardRef kullanıyoruz.
     forwardRef(() => AuthModule),
   ],
   controllers: [UsersController],
   providers: [UsersService],
-  // MongooseModule'ü, User modelini başka modüllerin kullanabilmesi için export ediyoruz.
-  exports: [MongooseModule],
+  exports: [UsersService, MongooseModule],
 })
 export class UsersModule {}
